@@ -1,0 +1,276 @@
+<html>
+
+<head>
+    <title>2.5次元マップ</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src='https://unpkg.com/maplibre-gl@3.1.0/dist/maplibre-gl.js'></script>
+    <link href='https://unpkg.com/maplibre-gl@3.1.0/dist/maplibre-gl.css' rel='stylesheet' />
+    <script src="https://unpkg.com/pmtiles@2.10.0/dist/index.js"></script>
+    <script src="https://unpkg.com/@maplibre/maplibre-gl-geocoder@1.2.0/dist/maplibre-gl-geocoder.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/@maplibre/maplibre-gl-geocoder@1.2.0/dist/maplibre-gl-geocoder.css"
+        type="text/css" />
+    <style>
+        body {
+            margin: 0;
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+    <script type="text/javascript">
+        // protocolを設定
+        let protocol = new pmtiles.Protocol();
+        maplibregl.addProtocol("pmtiles", protocol.tile);
+
+        // マップの初期化
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: 'std.json',
+            zoom: 14.34,
+            minZoom: 1,
+            maxZoom: 23,
+            pitch: 77,
+            bearing: -10.4,
+            maxPitch: 85,
+            center: [138.872, 35.12179],
+            hash: true,
+            attributionControl: false,
+        });
+
+        // ズーム・回転
+        map.addControl(
+            new maplibregl.NavigationControl({
+                visualizePitch: true,
+                showZoom: true,
+                showCompass: true
+            })
+        );
+
+        // フルスクリーンモードのオンオフ
+        map.addControl(new maplibregl.FullscreenControl());
+
+        // 現在位置表示
+        map.addControl(new maplibregl.GeolocateControl({
+            positionOptions: {
+                enableHighAccuracy: false
+            },
+            fitBoundsOptions: { maxZoom: 18 },
+            trackUserLocation: true,
+            showUserLocation: true
+        }));
+
+        // スケール表示
+        map.addControl(new maplibregl.ScaleControl({
+            maxWidth: 200,
+            unit: 'metric'
+        }));
+
+        // Attributionを折りたたみ表示
+        map.addControl(new maplibregl.AttributionControl({
+            compact: true,
+            customAttribution: '（<a href="https://twitter.com/shi__works" target="_blank">Twitter</a> | <a href="" target="_blank">Github</a>） '
+        }));
+
+        // 3D地形コントロール表示
+        map.addControl(
+            new maplibregl.TerrainControl({
+                source: 'gsidem-terrain-rgb',
+                exaggeration: 1 // 標高を強調する倍率
+            })
+        );
+
+        //ジオコーダー（国土地理院 地名検索API）
+        var geocoder_api = {
+            forwardGeocode: async (config) => {
+                const features = [];
+                const Text_Prefix = config.query.substr(0, 3);
+                try {
+                    let request = 'https://msearch.gsi.go.jp/address-search/AddressSearch?q=' + config.query;
+                    const response = await fetch(request);
+                    const geojson = await response.json();
+
+                    for (var i = 0; i < geojson.length; i++) {
+                        if (geojson[i].properties.title.indexOf(Text_Prefix) !== -1) {
+                            let point = {
+                                type: 'Feature',
+                                geometry: {
+                                    type: 'Point',
+                                    coordinates: geojson[i].geometry.coordinates
+                                },
+                                place_name: geojson[i].properties.title,
+                                properties: geojson[i].properties,
+                                text: geojson[i].properties.title,
+                                place_type: ['place'],
+                                center: geojson[i].geometry.coordinates
+                            };
+                            features.push(point);
+                        }
+                    }
+                } catch (e) {
+                    console.error(`Failed to forwardGeocode with error: ${e}`);
+                }
+                return {
+                    features: features
+                };
+            }
+        };
+        map.addControl(new MaplibreGeocoder(geocoder_api, { maplibregl: maplibregl }), 'top-left');
+
+        map.on('load', () => {
+            // 地理院 標高タイルソース
+            map.addSource("gsidem-terrain-rgb", {
+                type: 'raster-dem',
+                tiles: [
+                    'https://smb.optgeo.org/ipfs/QmWGYxRhixi4itNhy1YWtYX9sBcYxuykwENNxDsWMfqNgh/{z}/{x}/{y}.webp',
+                ],
+                attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html#dem" target="_blank">地理院タイル(標高タイル)</a>',
+                tileSize: 512
+            });
+
+            // 地理院 標高タイルセット
+            map.setTerrain({ 'source': 'gsidem-terrain-rgb', 'exaggeration': 1 });
+
+            // 法務省地図XMLソース
+            map.addSource("pmtiles-moj-xml", {
+                type: "vector",
+                url: "pmtiles://" + 'https://smb.optgeo.org/ipfs/Qmej7y68RA3LVqbNeNUSoAGxe8zgcQrhqaZk7zxSJXBtr5/a.pmtiles',
+                attribution: '<a href="https://github.com/amx-project">法務省地図XML</a>'
+            });
+
+            // 法務省地図XMLレイヤ（筆-ポリゴン）
+            map.addLayer({
+                "id": "fude-polygon",
+                "type": "fill",
+                "source": "pmtiles-moj-xml",
+                "source-layer": "fude",
+                "paint": {
+                    "fill-color": "rgba(254, 217, 192, 1)",
+                    "fill-opacity": 0.5
+                }
+            });
+
+            // 法務省地図XMLレイヤ（筆-ライン）
+            map.addLayer({
+                "id": "fude-line",
+                "type": "line",
+                "source": "pmtiles-moj-xml",
+                "source-layer": "fude",
+                "paint": {
+                    'line-color': 'rgba(255, 0, 0, 1)',
+                    'line-width': 0.5
+                }
+            });
+
+            // 法務省地図XMLレイヤ（代表点）
+            map.addLayer({
+                "id": "daihyo",
+                "type": "heatmap",
+                "source": "pmtiles-moj-xml",
+                "source-layer": "daihyo",
+                "paint": {
+                    "heatmap-color": [
+                        "interpolate",
+                        [
+                            "linear"
+                        ],
+                        [
+                            "heatmap-density"
+                        ],
+                        0,
+                        "rgba(255, 255, 255, 0)",
+                        1,
+                        "rgba(254, 217, 192, 0.5)"
+                    ],
+                    "heatmap-radius": [
+                        "interpolate",
+                        [
+                            "exponential",
+                            2
+                        ],
+                        [
+                            "zoom"
+                        ],
+                        2,
+                        8,
+                        14,
+                        64
+                    ]
+                }
+            });
+
+            // PLATEAU建築物ソース
+            map.addSource("pmtiles-lod1-building", {
+                type: "vector",
+                url: "pmtiles://" + "https://xs489works.xsrv.jp/pmtiles-data/plateau/PLATEAU_2020_LOD1_Z14.pmtiles",
+                attribution: '<a href="https://www.geospatial.jp/ckan/dataset/plateau">3D都市モデルPLATEAU 建築物（国土交通省）を加工して作成</a>'
+            });
+
+            // PLATEAU建築物レイヤ
+            map.addLayer({
+                'id': 'lod1-building',
+                'source': 'pmtiles-lod1-building',
+                'source-layer': 'PLATEAU_2020_LOD1fgb',
+                "minzoom": 14,
+                "maxzoom": 18,
+                'layout': {
+                    'visibility': 'visible',
+                },
+                'type': 'fill-extrusion',
+                'paint': {
+                    "fill-extrusion-color": [
+                        'case',
+                        ['boolean', ['feature-state', 'hover'], false],
+                        '#ff0000',
+                        '#aaa'
+                    ],
+                    "fill-extrusion-opacity": 0.7,
+                    "fill-extrusion-height": ["get", "bldg_measuredHeight"]
+                }
+            });
+
+            var hoveredStateId = null;
+
+            // ホバー効果
+            const id = 'lod1-building';
+            const sourceName = 'pmtiles-lod1-building';
+            const sourceLayerName = 'PLATEAU_2020_LOD1fgb';
+            map.on('mousemove', id, function (e) {
+                if (e.features.length > 0) {
+                    if (hoveredStateId) {
+                        map.setFeatureState(
+                            { source: sourceName, sourceLayer: sourceLayerName, id: hoveredStateId },
+                            { hover: false }
+                        );
+                    }
+                    hoveredStateId = e.features[0].id;
+                    map.setFeatureState(
+                        { source: sourceName, sourceLayer: sourceLayerName, id: hoveredStateId },
+                        { hover: true }
+                    );
+                }
+            });
+
+            map.on('mouseleave', id, function () {
+                if (hoveredStateId) {
+                    map.setFeatureState(
+                        { source: sourceName, sourceLayer: sourceLayerName, id: hoveredStateId },
+                        { hover: false }
+                    );
+                }
+                hoveredStateId = null;
+            });
+
+
+        });
+
+    </script>
+</body>
+
+</html>
