@@ -19,11 +19,88 @@
             height: 100%;
             width: 100%;
         }
+
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 300px;
+            overflow: auto;
+            margin: 0px auto;
+            border: none;
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        .map-overlay {
+            font: bold 12px/20px 'Helvetica Neue', Arial, Helvetica, sans-serif;
+            position: absolute;
+            width: 180px;
+            bottom: 20px;
+            left: 0;
+            padding: 10px;
+        }
+
+        .map-overlay .map-overlay-inner {
+            background-color: #fff;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+            border-radius: 3px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .map-overlay label {
+            display: block;
+            margin: 0 0 0px;
+            font-size: 12px;
+            top: 100px;
+            left: 10px;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .map-overlay input {
+            background-color: transparent;
+            display: inline-block;
+            width: 100%;
+            position: relative;
+            margin: 0;
+            cursor: ew-resize;
+        }
+
+        .maplibregl-popup .maplibregl-popup-content {
+            padding: 8px 10px;
+            font: 12px/14px Arial, Helvetica, sans-serif;
+            color: black;
+            background: white;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.9);
+            border-radius: 5px;
+            width: 250px;
+            height: 250px;
+            overflow: scroll;
+        }
+
+        th,
+        td {
+            border: solid 1px;
+        }
+
+        table {
+            font-size: 8pt;
+            border-collapse: collapse;
+        }
     </style>
 </head>
 
 <body>
     <div id="map"></div>
+    <pre id="info"></pre>
+    <div class="map-overlay top">
+        <div class="map-overlay-inner">
+            <label>陰影起伏図 不透明度: <span id="hillshade-slider-opacity-value">30%</span></label>
+            <input id="hillshade-slider-opacity" type="range" min="0" max="100" step="1" value="30">
+        </div>
+    </div>
+
     <script type="text/javascript">
         // protocolを設定
         let protocol = new pmtiles.Protocol();
@@ -33,13 +110,13 @@
         const map = new maplibregl.Map({
             container: 'map',
             style: 'std.json',
-            zoom: 14.34,
+            zoom: 15.26,
             minZoom: 1,
             maxZoom: 23,
-            pitch: 77,
-            bearing: -10.4,
+            pitch: 75,
+            bearing: -119,
             maxPitch: 85,
-            center: [138.872, 35.12179],
+            center: [141.343017, 43.065564],
             hash: true,
             attributionControl: false,
         });
@@ -141,24 +218,31 @@
             map.addSource("pmtiles-moj-xml", {
                 type: "vector",
                 url: "pmtiles://" + 'https://smb.optgeo.org/ipfs/Qmej7y68RA3LVqbNeNUSoAGxe8zgcQrhqaZk7zxSJXBtr5/a.pmtiles',
-                attribution: '<a href="https://github.com/amx-project">法務省地図XML</a>'
+                attribution: '<a href="https://github.com/amx-project">法務省地図XML</a>',
+                generateId: true
             });
 
             // 法務省地図XMLレイヤ（筆-ポリゴン）
             map.addLayer({
-                "id": "fude-polygon",
+                "id": "moj-xml-fude-polygon",
                 "type": "fill",
                 "source": "pmtiles-moj-xml",
                 "source-layer": "fude",
                 "paint": {
-                    "fill-color": "rgba(254, 217, 192, 1)",
+                    // "fill-color": "rgba(254, 217, 192, 0.5)",
+                    "fill-color": [
+                        'case',
+                        ['boolean', ['feature-state', 'hover'], false],
+                        '#FF0000',
+                        '#FED9C0'
+                    ],
                     "fill-opacity": 0.5
                 }
             });
 
             // 法務省地図XMLレイヤ（筆-ライン）
             map.addLayer({
-                "id": "fude-line",
+                "id": "moj-xml-fude-line",
                 "type": "line",
                 "source": "pmtiles-moj-xml",
                 "source-layer": "fude",
@@ -170,7 +254,7 @@
 
             // 法務省地図XMLレイヤ（代表点）
             map.addLayer({
-                "id": "daihyo",
+                "id": "moj-xml-daihyo",
                 "type": "heatmap",
                 "source": "pmtiles-moj-xml",
                 "source-layer": "daihyo",
@@ -227,7 +311,7 @@
                     "fill-extrusion-color": [
                         'case',
                         ['boolean', ['feature-state', 'hover'], false],
-                        '#ff0000',
+                        '#0000FF',
                         '#aaa'
                     ],
                     "fill-extrusion-opacity": 0.7,
@@ -235,11 +319,10 @@
                 }
             });
 
+            // ホバー効果（PLATEAU建築物）
             var hoveredStateId = null;
-
-            // ホバー効果
             const id = 'lod1-building';
-            const sourceName = 'pmtiles-lod1-building';
+            const sourceName = 'pmtiles-lod1-building'
             const sourceLayerName = 'PLATEAU_2020_LOD1fgb';
             map.on('mousemove', id, function (e) {
                 if (e.features.length > 0) {
@@ -267,9 +350,277 @@
                 hoveredStateId = null;
             });
 
+            // スライダーで陰影起伏図の不透明度を制御
+            const hillshade_sliderOpactiy = document.getElementById('hillshade-slider-opacity');
+            const hillshade_sliderOpactiyValue = document.getElementById('hillshade-slider-opacity-value');
+
+            hillshade_sliderOpactiy.addEventListener('input', (e) => {
+                map.setPaintProperty(
+                    'hillshade',
+                    'raster-opacity',
+                    parseInt(e.target.value, 10) / 100
+                );
+                hillshade_sliderOpactiyValue.textContent = e.target.value + '%';
+            });
 
         });
 
+        // ポップアップ表示
+        map.on('click', 'lod1-building', (e) => {
+            var lng = e.lngLat.lng;
+            var lat = e.lngLat.lat;
+
+            // 建築物(bldg)
+            var OID = e.features[0].properties['OID'];
+            var bldg_Building_gml_id = e.features[0].properties['bldg_Building_gml_id'];
+            var gml_name = e.features[0].properties['gml_name']; // 建築物名称
+            var bldg_class = e.features[0].properties['bldg_class']; // 建築物形態区分
+            var bldg_usage = e.features[0].properties['bldg_usage']; // 建築物用途
+            var bldg_yearOfConstruction = e.features[0].properties['bldg_yearOfConstruction']; // 建築年
+            var bldg_measuredHeight = e.features[0].properties['bldg_measuredHeight']; // 計測高さ
+            var bldg_storeysAboveGround = e.features[0].properties['bldg_storeysAboveGround']; // 地上階数
+            var bldg_storeysBelowGround = e.features[0].properties['bldg_storeysBelowGround']; // 地下階数
+
+            // 建物利用現況(uro)
+            var uro_buildingDetails_siteArea = e.features[0].properties['uro_buildingDetails_siteArea']; // 敷地面積
+            var uro_buildingDetails_totalFloorArea = e.features[0].properties['uro_buildingDetails_totalFloorArea']; // 延床面積
+            var uro_buildingDetails_buildingFootprintArea = e.features[0].properties['uro_buildingDetails_buildingFootprintArea']; // 建築面積
+            var uro_buildingDetails_buildingRoofEdgeArea = e.features[0].properties['uro_buildingDetails_buildingRoofEdgeArea']; // 図形面積
+            var uro_buildingDetails_buildingStructureType = e.features[0].properties['uro_buildingDetails_buildingStructureType']; // 構造種別
+            var uro_buildingDetails_surveyYear = e.features[0].properties['uro_buildingDetails_surveyYear']; // 調査年
+
+            // 拡張属性(gen)
+            var gen_tatemonoyotomei_kiso = e.features[0].properties['gen_建物用途名_基礎'];
+            var gen_tatemonoyotomei_dotaizu = e.features[0].properties['gen_建物用途名_動態図'];
+            var gen_tatemonoyoto_daibunrui = e.features[0].properties['gen_建物用途_大分類'];
+            var gen_tatemonoyoto_chubunrui = e.features[0].properties['gen_建物用途_中分類'];
+            var gen_tatemonoyoto_shobunrui = e.features[0].properties['gen_建物用途_小分類'];
+            var gen_tatemonoyoto_saibunrui = e.features[0].properties['gen_建物用途_細分類'];
+            var gen_tatemonokozo = e.features[0].properties['gen_建物構造'];
+            var gen_kempeiritsu = e.features[0].properties['gen_建ぺい率'];
+            var gen_yosekiritsu = e.features[0].properties['gen_容積率'];
+            var gen_chushajomenseki = e.features[0].properties['gen_駐車場面積'];
+
+            if (OID === undefined) { OID = "-" };
+            if (bldg_Building_gml_id === undefined) { bldg_Building_gml_id = "-" };
+            if (gml_name === undefined) { gml_name = "-" };
+            if (bldg_class === undefined) { bldg_class = "-" };
+            if (bldg_usage === undefined) { bldg_usage = "-" };
+            if (bldg_yearOfConstruction === undefined) { bldg_yearOfConstruction = "-" };
+            if (bldg_measuredHeight === undefined) { bldg_measuredHeight = "-" };
+            if (bldg_storeysAboveGround === undefined) { bldg_storeysAboveGround = "-" };
+            if (bldg_storeysBelowGround === undefined) { bldg_storeysBelowGround = "-" };
+
+            if (uro_buildingDetails_siteArea === undefined) { uro_buildingDetails_siteArea = "-" };
+            if (uro_buildingDetails_totalFloorArea === undefined) { uro_buildingDetails_totalFloorArea = "-"; }
+            if (uro_buildingDetails_buildingFootprintArea === undefined) { uro_buildingDetails_buildingFootprintArea = "-"; }
+            if (uro_buildingDetails_buildingRoofEdgeArea === undefined) { uro_buildingDetails_buildingRoofEdgeArea = "-"; }
+            if (uro_buildingDetails_buildingStructureType === undefined) { uro_buildingDetails_buildingStructureType = "-"; }
+            if (uro_buildingDetails_surveyYear === undefined) { uro_buildingDetails_surveyYear = "-"; }
+
+            if (gen_tatemonoyotomei_kiso === undefined) { gen_tatemonoyotomei_kiso = "-" };
+            if (gen_tatemonoyotomei_dotaizu === undefined) { gen_tatemonoyotomei_dotaizu = "-" };
+            if (gen_tatemonoyoto_daibunrui === undefined) { gen_tatemonoyoto_daibunrui = "-" };
+            if (gen_tatemonoyoto_chubunrui === undefined) { gen_tatemonoyoto_chubunrui = "-" };
+            if (gen_tatemonoyoto_shobunrui === undefined) { gen_tatemonoyoto_shobunrui = "-" };
+            if (gen_tatemonoyoto_saibunrui === undefined) { gen_tatemonoyoto_saibunrui = "-" };
+            if (gen_tatemonokozo === undefined) { gen_tatemonokozo = "-" };
+            if (gen_kempeiritsu === undefined) { gen_kempeiritsu = "-" };
+            if (gen_yosekiritsu === undefined) { gen_yosekiritsu = "-" };
+            if (gen_chushajomenseki === undefined) { gen_chushajomenseki = "-" };
+
+            uro_buildingDetails_siteArea = uro_buildingDetails_siteArea.toLocaleString();
+            uro_buildingDetails_totalFloorArea = uro_buildingDetails_totalFloorArea.toLocaleString();
+            uro_buildingDetails_buildingFootprintArea = uro_buildingDetails_buildingFootprintArea.toLocaleString();
+            uro_buildingDetails_buildingRoofEdgeArea = uro_buildingDetails_buildingRoofEdgeArea.toLocaleString();
+
+            gen_chushajomenseki = gen_chushajomenseki.toLocaleString();
+
+            // bldg_class(Building_class.xml)
+            var bldg_class_name = '-'
+            if (bldg_class === '3001') {
+                bldg_class_name = '普通建物';
+            } else if (bldg_class === '3002') {
+                bldg_class_name = '堅ろう建物';
+            } else if (bldg_class === '3003') {
+                bldg_class_name = '普通無壁舎';
+            } else if (bldg_class === '3004') {
+                bldg_class_name = '堅ろう無壁舎';
+            } else if (bldg_class === '3000') {
+                bldg_class_name = '分類しない建物';
+            }
+
+            // bldg_usage(Building_usage.xml)
+            var bldg_usage_name = '-'
+            if (bldg_usage === '401') {
+                bldg_usage_name = '業務施設';
+            } else if (bldg_usage === '402') {
+                bldg_usage_name = '商業施設';
+            } else if (bldg_usage === '403') {
+                bldg_usage_name = '宿泊施設';
+            } else if (bldg_usage === '404') {
+                bldg_usage_name = '商業系複合施設';
+            } else if (bldg_usage === '411') {
+                bldg_usage_name = '住宅';
+            } else if (bldg_usage === '412') {
+                bldg_usage_name = '共同住宅';
+            } else if (bldg_usage === '413') {
+                bldg_usage_name = '店舗等併用住宅';
+            } else if (bldg_usage === '414') {
+                bldg_usage_name = '店舗等併用共同住宅';
+            } else if (bldg_usage === '415') {
+                bldg_usage_name = '作業所併用住宅';
+            } else if (bldg_usage === '421') {
+                bldg_usage_name = '官公庁施設';
+            } else if (bldg_usage === '422') {
+                bldg_usage_name = '文教厚生施設';
+            } else if (bldg_usage === '431') {
+                bldg_usage_name = '運輸倉庫施設';
+            } else if (bldg_usage === '441') {
+                bldg_usage_name = '工場';
+            } else if (bldg_usage === '451') {
+                bldg_usage_name = '農林漁業用施設';
+            } else if (bldg_usage === '452') {
+                bldg_usage_name = '供給処理施設';
+            } else if (bldg_usage === '453') {
+                bldg_usage_name = '防衛施設';
+            } else if (bldg_usage === '454') {
+                bldg_usage_name = 'その他';
+            } else if (bldg_usage === '461') {
+                bldg_usage_name = '不明';
+            }
+
+            // buildingStructureType
+            var uro_buildingDetails_buildingStructureType_name = '-';
+            if (uro_buildingDetails_buildingStructureType === '601') {
+                uro_buildingDetails_buildingStructureType_name = '木造・土蔵造';
+            } else if (uro_buildingDetails_buildingStructureType === '602') {
+                uro_buildingDetails_buildingStructureType_name = '鉄骨鉄筋コンクリート造';
+            } else if (uro_buildingDetails_buildingStructureType === '603') {
+                uro_buildingDetails_buildingStructureType_name = '鉄筋コンクリート造';
+            } else if (uro_buildingDetails_buildingStructureType === '604') {
+                uro_buildingDetails_buildingStructureType_name = '鉄骨造';
+            } else if (uro_buildingDetails_buildingStructureType === '605') {
+                uro_buildingDetails_buildingStructureType_name = '軽量鉄骨造';
+            } else if (uro_buildingDetails_buildingStructureType === '606') {
+                uro_buildingDetails_buildingStructureType_name = 'レンガ造・コンクリートブロック造・石造';
+            } else if (uro_buildingDetails_buildingStructureType === '610') {
+                uro_buildingDetails_buildingStructureType_name = '非木造';
+            } else if (uro_buildingDetails_buildingStructureType === '611') {
+                uro_buildingDetails_buildingStructureType_name = '不明';
+            } else if (uro_buildingDetails_buildingStructureType === '612') {
+                uro_buildingDetails_buildingStructureType_name = '簡易耐火';
+            } else if (uro_buildingDetails_buildingStructureType === '613') {
+                uro_buildingDetails_buildingStructureType_name = '耐火';
+            }
+
+            new maplibregl.Popup()
+                .setLngLat(e.lngLat)
+                .setHTML(
+                    // 表形式
+                    '<table ' + 'style="font-size: 8pt; table-layout: auto;"' + '>' +
+                    '<tr>' +
+                    '<th style="background-color: #CCCCCC;">' + '項目' + '</th> ' + '<th style="background-color: #CCCCCC;">' + '内容' + '</th> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + 'OID' + '</td> ' + '<td>' + OID + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + 'bldg_Building_gml_id' + '</td> ' + '<td>' + bldg_Building_gml_id + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '建築物名称' + '</td> ' + '<td>' + gml_name + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '建築物形態区分' + '</td> ' + '<td>' + bldg_class_name + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '建築物用途' + '</td> ' + '<td>' + bldg_usage_name + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '建築年' + '</td> ' + '<td>' + bldg_yearOfConstruction + '年' + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '計測高さ' + '</td> ' + '<td>' + bldg_measuredHeight + 'm' + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '地上階数' + '</td> ' + '<td>' + bldg_storeysAboveGround + '階' + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '地下階数' + '</td> ' + '<td>' + bldg_storeysBelowGround + '階' + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '敷地面積' + '</td> ' + '<td>' + uro_buildingDetails_siteArea + 'm<sup>2</sup>' + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '延床面積' + '</td> ' + '<td>' + uro_buildingDetails_totalFloorArea + 'm<sup>2</sup>' + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '建築面積' + '</td> ' + '<td>' + uro_buildingDetails_buildingFootprintArea + 'm<sup>2</sup>' + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '図形面積' + '</td> ' + '<td>' + uro_buildingDetails_buildingRoofEdgeArea + 'm<sup>2</sup>' + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '構造種別' + '</td> ' + '<td>' + uro_buildingDetails_buildingStructureType_name + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '調査年' + '</td> ' + '<td>' + uro_buildingDetails_surveyYear + '年' + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '建物用途名_基礎' + '</td> ' + '<td>' + gen_tatemonoyotomei_kiso + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '建物用途名_動態図' + '</td> ' + '<td>' + gen_tatemonoyotomei_dotaizu + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '建物用途_大分類' + '</td> ' + '<td>' + gen_tatemonoyoto_daibunrui + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '建物用途_中分類' + '</td> ' + '<td>' + gen_tatemonoyoto_chubunrui + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '建物用途_小分類' + '</td> ' + '<td>' + gen_tatemonoyoto_shobunrui + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '建物用途_細分類' + '</td> ' + '<td>' + gen_tatemonoyoto_saibunrui + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '建物構造' + '</td> ' + '<td>' + gen_tatemonokozo + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '建ぺい率' + '</td> ' + '<td>' + gen_kempeiritsu + '%' + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '容積率' + '</td> ' + '<td>' + gen_yosekiritsu + '%' + '</td> ' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>' + '駐車場面積' + '</td> ' + '<td>' + gen_chushajomenseki + 'm<sup>2</sup>' + '</td> ' +
+                    '</tr>' +
+                    '<table>'
+                    + '<a href=\https://www.google.com/maps?q=' + lat + "," + lng + "&hl=ja' target='_blank'>🌎Google Maps</a>" + ' '
+                )
+                .addTo(map);
+        });
+
+        // 
+        map.on('mousemove', e => {
+            let fs = map.queryRenderedFeatures(e.point, { layers: ['moj-xml-fude-polygon'] })
+            let j = '-'
+            if (fs.length == 0) {
+            } else {
+                let a = []
+                for (let f of fs) {
+                    let p = f.properties
+                    let pr = (k) => {
+                        return !p[k] ? '' : p[k]
+                    }
+                    a.push(pr('市区町村名') + pr('大字名') + pr('丁目名') + pr('小字名') + pr('地番'))
+                }
+                j = a.join('; ')
+            }
+            document.getElementById('info').innerHTML = j
+        });
     </script>
 </body>
 
