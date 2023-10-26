@@ -2,7 +2,10 @@
 ## Public Website
 https://shi-works.github.io/2.5d-map-on-mapLibre-gl-js/
 
-### 国土地理院 標高タイル（Terrain-RGB形式）
+## 国土地理院 最適化ベクトルタイル（PMTiles）
+https://github.com/gsi-cyberjapan/optimal_bvmap
+
+### 国土地理院 標高タイル（Terrain-RGB）
 https://github.com/optgeo/et10b
 
 ### 法務省地図XML（PMTiles）
