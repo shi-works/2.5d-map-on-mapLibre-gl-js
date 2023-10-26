@@ -20,16 +20,6 @@
             width: 100%;
         }
 
-        #info {
-            position: absolute;
-            top: 20px;
-            left: 300px;
-            overflow: auto;
-            margin: 0px auto;
-            border: none;
-            background: rgba(255, 255, 255, 0.9);
-        }
-
         .map-overlay {
             font: bold 12px/20px 'Helvetica Neue', Arial, Helvetica, sans-serif;
             position: absolute;
@@ -93,7 +83,6 @@
 
 <body>
     <div id="map"></div>
-    <pre id="info"></pre>
     <div class="map-overlay top">
         <div class="map-overlay-inner">
             <label>陰影起伏図 不透明度: <span id="hillshade-slider-opacity-value">30%</span></label>
@@ -218,8 +207,7 @@
             map.addSource("pmtiles-moj-xml", {
                 type: "vector",
                 url: "pmtiles://" + 'https://smb.optgeo.org/ipfs/Qmej7y68RA3LVqbNeNUSoAGxe8zgcQrhqaZk7zxSJXBtr5/a.pmtiles',
-                attribution: '<a href="https://github.com/amx-project">法務省地図XML</a>',
-                generateId: true
+                attribution: '<a href="https://github.com/amx-project">法務省地図XML</a>'
             });
 
             // 法務省地図XMLレイヤ（筆-ポリゴン）
@@ -601,25 +589,6 @@
                     + '<a href=\https://www.google.com/maps?q=' + lat + "," + lng + "&hl=ja' target='_blank'>🌎Google Maps</a>" + ' '
                 )
                 .addTo(map);
-        });
-
-        // 
-        map.on('mousemove', e => {
-            let fs = map.queryRenderedFeatures(e.point, { layers: ['moj-xml-fude-polygon'] })
-            let j = '-'
-            if (fs.length == 0) {
-            } else {
-                let a = []
-                for (let f of fs) {
-                    let p = f.properties
-                    let pr = (k) => {
-                        return !p[k] ? '' : p[k]
-                    }
-                    a.push(pr('市区町村名') + pr('大字名') + pr('丁目名') + pr('小字名') + pr('地番'))
-                }
-                j = a.join('; ')
-            }
-            document.getElementById('info').innerHTML = j
         });
     </script>
 </body>
