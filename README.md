@@ -6,7 +6,7 @@ https://shi-works.github.io/2.5d-map-on-mapLibre-gl-js/
 https://github.com/gsi-cyberjapan/optimal_bvmap
 
 ### 国土地理院 標高タイル（Terrain-RGB）
-https://github.com/optgeo/et10b
+https://github.com/shi-works/gsi-dem-10b-terrain-rgb
 
 ### 法務省地図XML（PMTiles）
 https://github.com/amx-project/ab
