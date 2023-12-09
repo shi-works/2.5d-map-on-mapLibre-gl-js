@@ -4,8 +4,8 @@
     <title>2.5次元マップ</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src='https://unpkg.com/maplibre-gl@3.1.0/dist/maplibre-gl.js'></script>
-    <link href='https://unpkg.com/maplibre-gl@3.1.0/dist/maplibre-gl.css' rel='stylesheet' />
+    <script src='https://unpkg.com/maplibre-gl@3.4.1/dist/maplibre-gl.js'></script>
+    <link href='https://unpkg.com/maplibre-gl@3.4.1/dist/maplibre-gl.css' rel='stylesheet' />
     <script src="https://unpkg.com/pmtiles@2.10.0/dist/index.js"></script>
     <script src="https://unpkg.com/@maplibre/maplibre-gl-geocoder@1.2.0/dist/maplibre-gl-geocoder.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/@maplibre/maplibre-gl-geocoder@1.2.0/dist/maplibre-gl-geocoder.css"
@@ -194,7 +194,8 @@
             map.addSource("gsidem-terrain-rgb", {
                 type: 'raster-dem',
                 tiles: [
-                    'https://smb.optgeo.org/ipfs/QmWGYxRhixi4itNhy1YWtYX9sBcYxuykwENNxDsWMfqNgh/{z}/{x}/{y}.webp',
+                    // 'https://smb.optgeo.org/ipfs/QmWGYxRhixi4itNhy1YWtYX9sBcYxuykwENNxDsWMfqNgh/{z}/{x}/{y}.webp',
+                    'https://xs489works.xsrv.jp/raster-tiles/gsi/gsi-dem-terrain-rgb/{z}/{x}/{y}.png',
                 ],
                 attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html#dem" target="_blank">地理院タイル(標高タイル)</a>',
                 tileSize: 512
